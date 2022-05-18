@@ -1,4 +1,14 @@
 const { ApolloServer, gql } = require('apollo-server');
+const {pool} = require('./mysqlcon');
+
+async function getProduct(id) {
+  console.log(id)
+  const productQuery = 'SELECT product.* FROM product WHERE product.id = ?';
+  const productBindings = [parseInt(id)];
+  const [product] = await pool.query(productQuery, productBindings);
+
+  return product[0]
+}
 
 // A schema is a collection of type definitions (hence "typeDefs")
 // that together define the "shape" of queries that are executed against
@@ -11,7 +21,7 @@ const typeDefs = gql`
   }
 
   type Product {
-    id: Int
+    id: String
     category: String
     title: String
     description: String
@@ -28,37 +38,25 @@ const typeDefs = gql`
   # clients can execute, along with the return type for each. In this
   # case, the "books" query returns an array of zero or more Books (defined above).
   type Query {
-    book: Book
-    books: [Book]
-    product: Product
+    book(author: String, title: String): Book
+    books(author: String): [Book]
+    product(id: String): Product
     products: [Product]
   }
 `;
-const book =  {
-    title: 'The Awakening',
-    author: 'Kate Chopin',
-}
-
-const books = [
-    {
-      title: 'The Awakening',
-      author: 'Kate Chopin',
-    },
-    {
-      title: 'City of Glass',
-      author: 'Paul Auster',
-    },
-  ];
 
 // Resolvers define the technique for fetching the types defined in the
 // schema. This resolver retrieves books from the "books" array above.
 const resolvers = {
     Query: {
-        book: () => book,
+        book: (root, args, context) => {
+          console.log(args)
+          return book
+        },
         books: () => books,
-        product: (id) => {
-            return {}
-        }
+        product: (root, args, context) => {
+          return getProduct(args.id)
+        },
     },
   };
 
