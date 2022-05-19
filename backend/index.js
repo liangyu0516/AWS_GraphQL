@@ -10,7 +10,7 @@ async function getProduct(id) {
 	const inventoryBindings = [parseInt(id)];
 	const [inventory] = await pool.query(inventoryQuery, inventoryBindings);
 	product.inventory = JSON.stringify(inventory)
-	
+
 	return product
 }
 
@@ -18,6 +18,15 @@ async function getProductList(category) {
 	const productListQuery = 'SELECT product.* FROM product WHERE product.category = ?';
 	const productListBindings = [category];
 	const [productList] = await pool.query(productListQuery, productListBindings);
+	console.log(productList)
+
+	for (let index = 0; index < productList.length; index++) {
+		const inventoryQuery = 'SELECT color_id, size, stock FROM variant WHERE variant.product_id = ?';
+		const inventoryBindings = [productList[index].id];
+		const [inventory] = await pool.query(inventoryQuery, inventoryBindings);
+		productList[index].inventory = JSON.stringify(inventory)
+	}
+
 	return productList
 }
 
