@@ -55,6 +55,37 @@ async function createProduct(product, variant) {
   }
 }
 
+async function updateProduct(newInfo) {
+	const conn = await pool.getConnection();
+  await conn.execute('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
+  await conn.beginTransaction();
+  try {
+		if (newInfo.category !== undefined) await conn.query("UPDATE product SET category = ? WHERE id = ?", [newInfo.category, newInfo.id])
+		if (newInfo.title !== undefined) await conn.query("UPDATE product SET title = ? WHERE id = ?", [newInfo.title, newInfo.id])
+		if (newInfo.description !== undefined) await conn.query("UPDATE product SET description = ? WHERE id = ?", [newInfo.description, newInfo.id])
+		if (newInfo.price !== undefined) await conn.query("UPDATE product SET price = ? WHERE id = ?", [newInfo.price, newInfo.id])
+		if (newInfo.texture !== undefined) await conn.query("UPDATE product SET texture = ? WHERE id = ?", [newInfo.texture, newInfo.id])
+		if (newInfo.wash !== undefined) await conn.query("UPDATE product SET wash = ? WHERE id = ?", [newInfo.wash, newInfo.id])
+		if (newInfo.place !== undefined) await conn.query("UPDATE product SET place = ? WHERE id = ?", [newInfo.place, newInfo.id])
+		if (newInfo.note !== undefined) await conn.query("UPDATE product SET note = ? WHERE id = ?", [newInfo.note, newInfo.id])
+		if (newInfo.story !== undefined) await conn.query("UPDATE product SET story = ? WHERE id = ?", [newInfo.story, newInfo.id])
+		if (newInfo.main_image !== undefined) await conn.query("UPDATE product SET main_image = ? WHERE id = ?", [newInfo.main_image, newInfo.id])
+		const productQuery = 'SELECT product.* FROM product WHERE product.id = ?';
+		const productBindings = [newInfo.id];
+		const [[product]] = await conn.query(productQuery, productBindings);
+		
+    await conn.commit();
+    return product;
+  } catch (error) {
+    conn.rollback();
+    console.log(error)
+    newProduct.id = '-1'
+    return newProduct;
+  } finally {
+    await conn.release();
+  }
+}
+
 // A schema is a collection of type definitions (hence "typeDefs")
 // that together define the "shape" of queries that are executed against
 // your data.
@@ -87,6 +118,7 @@ const typeDefs = gql`
 	}
 	type Mutation {
 		createProduct(category: String, title: String, description: String, price: Int, texture: String, wash: String, place: String, note: String, story: String, main_image: String, inventory: String): ProductID
+		updateProduct(id: String!, category: String, title: String, description: String, price: Int, texture: String, wash: String, place: String, note: String, story: String, main_image: String, inventory: String): Product
 	}
 `;
 
@@ -109,6 +141,14 @@ const resolvers = {
 					product[Object.keys(args)[index]] = args[Object.keys(args)[index]]
 				}
 				return createProduct(product, variant)
+			},
+			updateProduct: (root, args, context) => {
+				// const product = {}
+				// const variant = JSON.parse(args.inventory.replace(/'/g, '"'))
+				// for (let index = 0; index < Object.keys(args).length - 1; index++) {
+				// 	product[Object.keys(args)[index]] = args[Object.keys(args)[index]]
+				// }
+				return updateProduct(args)
 			},
 	},
 	};
