@@ -70,12 +70,24 @@ async function updateProduct(newInfo) {
 		if (newInfo.note !== undefined) await conn.query("UPDATE product SET note = ? WHERE id = ?", [newInfo.note, newInfo.id])
 		if (newInfo.story !== undefined) await conn.query("UPDATE product SET story = ? WHERE id = ?", [newInfo.story, newInfo.id])
 		if (newInfo.main_image !== undefined) await conn.query("UPDATE product SET main_image = ? WHERE id = ?", [newInfo.main_image, newInfo.id])
-		const productQuery = 'SELECT product.* FROM product WHERE product.id = ?';
-		const productBindings = [newInfo.id];
-		const [[product]] = await conn.query(productQuery, productBindings);
-		
+		if (newInfo.inventory !== undefined) {
+			const newInventory = JSON.parse(newInfo.inventory.replace(/'/g, '"'))
+			const inventoryQuery = 'SELECT id, color_id, size FROM variant WHERE product_id = ?';
+			const inventoryBindings = [newInfo.id];
+			const [inventory] = await conn.query(inventoryQuery, inventoryBindings);
+			for (let i = 0; i < newInventory.length; i++) {
+				for (let j = 0; j < inventory.length; j++) {
+					if (newInventory[i].color_id == inventory[j].color_id && newInventory[i].size == inventory[j].size) {
+						await conn.query("UPDATE variant SET stock = ? WHERE id = ?", [newInventory[i].stock, inventory[j].id])
+						break
+					}
+					else if (j == inventory.length - 1)
+						await conn.query("INSERT INTO variant(product_id, color_id, size, stock) VALUES (?, ?, ?, ?)", [newInfo.id, newInventory[i].color_id, newInventory[i].size, newInventory[i].stock])
+				}
+			}
+		}
     await conn.commit();
-    return product;
+    return getProduct(newInfo.id)
   } catch (error) {
     conn.rollback();
     console.log(error)
@@ -143,11 +155,6 @@ const resolvers = {
 				return createProduct(product, variant)
 			},
 			updateProduct: (root, args, context) => {
-				// const product = {}
-				// const variant = JSON.parse(args.inventory.replace(/'/g, '"'))
-				// for (let index = 0; index < Object.keys(args).length - 1; index++) {
-				// 	product[Object.keys(args)[index]] = args[Object.keys(args)[index]]
-				// }
 				return updateProduct(args)
 			},
 	},
