@@ -30,11 +30,29 @@ async function getProductList(category) {
 	return productList
 }
 
-async function createProduct(product) {
-	const productListQuery = 'SELECT product.* FROM product WHERE product.category = ?';
-	const productListBindings = [category];
-	const [productList] = await pool.query(productListQuery, productListBindings);
-	return productList
+async function createProduct(product, variant) {
+	console.log(product)
+	console.log(variant)
+	var newProduct = {}
+	const conn = await pool.getConnection();
+  await conn.execute('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
+  await conn.beginTransaction();
+  try {
+    const [result] = await conn.query('INSERT INTO product SET ?', product);
+		for (let index = 0; index < variant.length; index++) {
+			await conn.query("INSERT INTO variant(product_id, color_id, size, stock) VALUES (?, ?, ?, ?)", [result.insertId, variant[index].color_id, variant[index].size, variant[index].stock])
+		}
+    await conn.commit();
+		newProduct.id = result.insertId
+    return newProduct;
+  } catch (error) {
+    conn.rollback();
+    console.log(error)
+    newProduct.id = '-1'
+    return newProduct;
+  } finally {
+    await conn.release();
+  }
 }
 
 // A schema is a collection of type definitions (hence "typeDefs")
@@ -56,6 +74,9 @@ const typeDefs = gql`
 		main_image: String
 		inventory: String
 	}
+	type ProductID {
+		id: String
+	}
 
 	# The "Query" type is special: it lists all of the available queries that
 	# clients can execute, along with the return type for each. In this
@@ -65,7 +86,7 @@ const typeDefs = gql`
 		products(category: String): [Product]
 	}
 	type Mutation {
-		createProduct(category: String, title: String, description: String, price: Int, texture: String, wash: String, place: String, note: String, story: String, main_image: String): Product
+		createProduct(category: String, title: String, description: String, price: Int, texture: String, wash: String, place: String, note: String, story: String, main_image: String, inventory: String): ProductID
 	}
 `;
 
@@ -82,7 +103,12 @@ const resolvers = {
 		},
 		Mutation: {
 			createProduct: (root, args, context) => {
-				return createProduct(args)
+				const product = {}
+				const variant = JSON.parse(args.inventory.replace(/'/g, '"'))
+				for (let index = 0; index < Object.keys(args).length - 1; index++) {
+					product[Object.keys(args)[index]] = args[Object.keys(args)[index]]
+				}
+				return createProduct(product, variant)
 			},
 	},
 	};
