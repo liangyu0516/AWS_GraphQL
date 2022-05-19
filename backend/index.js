@@ -14,20 +14,29 @@ async function getProduct(id) {
 	return product
 }
 
-async function getProductList(category) {
+async function getProductList(paging, category) {
 	const productListQuery = 'SELECT product.* FROM product WHERE product.category = ?';
 	const productListBindings = [category];
 	const [productList] = await pool.query(productListQuery, productListBindings);
-	console.log(productList)
+	var selectedProductList = []
+	var nextPage = null
+	if (paging <= 0 || (paging - 1) * 6 >= productList.length)
+		return {products: null, next_paging: null}
+	else if (paging * 6 <= productList.length) {
+		nextPage = paging + 1
+		selectedProductList = productList.slice((paging - 1) * 6, paging * 6)
+	}
+	else
+		selectedProductList = productList.slice((paging - 1) * 6, productList.length)
 
-	for (let index = 0; index < productList.length; index++) {
+	for (let index = 0; index < selectedProductList.length; index++) {
 		const inventoryQuery = 'SELECT color_id, size, stock FROM variant WHERE variant.product_id = ?';
-		const inventoryBindings = [productList[index].id];
+		const inventoryBindings = [selectedProductList[index].id];
 		const [inventory] = await pool.query(inventoryQuery, inventoryBindings);
-		productList[index].inventory = JSON.stringify(inventory)
+		selectedProductList[index].inventory = JSON.stringify(inventory)
 	}
 
-	return productList
+	return {products: selectedProductList, next_paging: nextPage}
 }
 
 async function createProduct(product, variant) {
@@ -117,6 +126,10 @@ const typeDefs = gql`
 		main_image: String
 		inventory: String
 	}
+	type ProductList {
+		products: [Product]
+		next_paging: Int
+	}
 	type ProductID {
 		id: String
 	}
@@ -126,7 +139,7 @@ const typeDefs = gql`
 	# case, the "books" query returns an array of zero or more Books (defined above).
 	type Query {
 		product(id: String): Product
-		products(category: String): [Product]
+		products(paging: Int, category: String): ProductList
 	}
 	type Mutation {
 		createProduct(category: String, title: String, description: String, price: Int, texture: String, wash: String, place: String, note: String, story: String, main_image: String, inventory: String): ProductID
@@ -142,7 +155,7 @@ const resolvers = {
 					return getProduct(args.id)
 				},
 				products: (root, args, context) => {
-					return getProductList(args.category)
+					return getProductList(args.paging, args.category)
 				},
 		},
 		Mutation: {
