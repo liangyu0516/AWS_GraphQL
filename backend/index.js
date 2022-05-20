@@ -6,7 +6,7 @@ async function getProduct(id) {
 	const productBindings = [parseInt(id)];
 	const [[product]] = await pool.query(productQuery, productBindings);
 
-	const inventoryQuery = 'SELECT variant.* FROM variant WHERE variant.product_id = ?';
+	const inventoryQuery = 'SELECT color_id, size, stock FROM variant WHERE variant.product_id = ?';
 	const inventoryBindings = [parseInt(id)];
 	const [inventory] = await pool.query(inventoryQuery, inventoryBindings);
 	product.inventory = JSON.stringify(inventory)
@@ -85,6 +85,10 @@ async function updateProduct(newInfo) {
 			const inventoryBindings = [newInfo.id];
 			const [inventory] = await conn.query(inventoryQuery, inventoryBindings);
 			for (let i = 0; i < newInventory.length; i++) {
+				if (inventory.length == 0) {
+					await conn.query("INSERT INTO variant(product_id, color_id, size, stock) VALUES (?, ?, ?, ?)", [newInfo.id, newInventory[i].color_id, newInventory[i].size, newInventory[i].stock])
+					continue
+				}
 				for (let j = 0; j < inventory.length; j++) {
 					if (newInventory[i].color_id == inventory[j].color_id && newInventory[i].size == inventory[j].size) {
 						await conn.query("UPDATE variant SET stock = ? WHERE id = ?", [newInventory[i].stock, inventory[j].id])
@@ -100,8 +104,7 @@ async function updateProduct(newInfo) {
   } catch (error) {
     conn.rollback();
     console.log(error)
-    newProduct.id = '-1'
-    return newProduct;
+    return null;
   } finally {
     await conn.release();
   }
@@ -170,16 +173,16 @@ const resolvers = {
 			updateProduct: (root, args, context) => {
 				return updateProduct(args)
 			},
-	},
+		},
 	};
 
 // The ApolloServer constructor requires two parameters: your schema
 // definition and your set of resolvers.
 const server = new ApolloServer({
-		typeDefs,
-		resolvers,
-		csrfPrevention: true,
-	});
+	typeDefs,
+	resolvers,
+	csrfPrevention: true,
+});
 	
 // The `listen` method launches a web server.
 server.listen().then(({ url }) => {
